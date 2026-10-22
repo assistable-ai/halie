@@ -1,6 +1,8 @@
-# little-harness
+# Halie
 
-**Make an 8B local model genuinely agentic. The loop lives in the harness, not the model.**
+**Your AI agent that lives on your own computer. Make an 8B local model genuinely agentic — the loop lives in the harness, not the model.**
+
+> [halie.ai](https://halie.ai)
 
 Most people can run an 8-billion-parameter model (Qwen3, Llama, Gemma) on the hardware they already own. What they can't run is GPT-5-class *context* — thousands of tokens of tool schemas, file contents, and conversation history dragged through every step until the small model drowns.
 
@@ -27,7 +29,7 @@ The result: an 8B model that completes multi-step agentic work it fails at nativ
 
 ## Status
 
-Pre-alpha. Architecture in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Building in the open.
+Pre-alpha. Architecture in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Building in the open at [halie.ai](https://halie.ai).
 
 ## Why this matters
 
