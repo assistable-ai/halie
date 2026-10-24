@@ -1,5 +1,6 @@
 // Conversation layer: persistent history, reliable tools, self-correcting tool loop.
 import { callModel } from './executor.js';
+import { GOOGLE_TOOLS, runGoogleTool } from './google-tools.js';
 import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -29,19 +30,36 @@ function loadMemory() {
   try { return readFileSync(MEMORY_FILE, 'utf8').slice(0, 2000); } catch { return '(no memories yet)'; }
 }
 
+function lastKnownLocation() {
+  try { const m = readFileSync(MEMORY_FILE, 'utf8').match(/User location: (.+)/); return m ? m[1].trim() : null; } catch { return null; }
+}
+
 const TOOLS = [
   { type: 'function', function: { name: 'weather', description: 'Get current weather and forecast for a location. Always use this for weather questions, NOT web_search.', parameters: { type: 'object', properties: { location: { type: 'string', description: 'city name' } }, required: ['location'] } } },
   { type: 'function', function: { name: 'web_search', description: 'Search the web for current info, news, facts. For anything you dont know offhand. NOT for weather (use weather tool).', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } },
   { type: 'function', function: { name: 'run_task', description: 'Run a multi-step task (read files, run shell commands, write files) via the task harness. For real actions like checking disk or reading files.', parameters: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] } } },
   { type: 'function', function: { name: 'run_shell', description: 'Run a quick shell command and get stdout. One-shot checks only.', parameters: { type: 'object', properties: { command: { type: 'string' } }, required: ['command'] } } },
+  ...GOOGLE_TOOLS,
   { type: 'function', function: { name: 'remember_this', description: 'Save a durable note to long-term memory (name, location, preferences). You will see it forever.', parameters: { type: 'object', properties: { note: { type: 'string' } }, required: ['note'] } } }
 ];
 
 async function runTool(name, args) {
+  if (name.startsWith('calendar_') || name.startsWith('gmail_')) return await runGoogleTool(name, args);
   if (name === 'weather') {
-    const r = await fetch('https://wttr.in/' + encodeURIComponent(args.location) + '?format=j1', { headers: { 'User-Agent': 'curl' } });
-    if (!r.ok) throw new Error('weather service ' + r.status);
+    // sanitize: strip obvious profanity/typos from location
+    const clean = (args.location || '').replace(/\b(fuc?k\w*|shit\w*|damn?\w*|ya|the|in|for)\b/gi, '').replace(/\s+/g, ' ').trim();
+    const loc = clean || lastKnownLocation() || args.location;
+    let r;
+    try { r = await fetch('https://wttr.in/' + encodeURIComponent(loc) + '?format=j1', { headers: { 'User-Agent': 'curl' } }); }
+    catch (e) { throw new Error('weather service unreachable'); }
+    if (!r.ok) throw new Error('weather service ' + r.status + ' for "' + loc + '"');
     const d = await r.json();
+    // verify real answer before trusting
+    if (!d.current_condition || !d.current_condition[0]) throw new Error('no weather data for ' + loc);
+    // remember the location forever
+    if (loc && !readFileSync(MEMORY_FILE, 'utf8').toLowerCase().includes(loc.toLowerCase())) {
+      appendFileSync(MEMORY_FILE, '- User location: ' + loc + '\n');
+    }
     const cur = d.current_condition[0];
     const fc = (d.weather || []).slice(0, 2).map(w => {
       const day = w.hourly[4] || w.hourly[0];
