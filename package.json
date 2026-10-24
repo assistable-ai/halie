@@ -1,0 +1,1 @@
+{ "name": "halie", "version": "0.1.0", "type": "module", "description": "Your AI agent that lives on your own computer.", "main": "src/cli.mjs", "scripts": { "cli": "node src/cli.mjs", "telegram": "node src/gateways/telegram.mjs" }, "license": "MIT" }
